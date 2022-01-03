@@ -1,0 +1,53 @@
+---
+- name: "Creating Virtualhost"
+  become: true
+  hosts: amazon
+  vars:
+    httpd_port: 80
+    httpd_user: "apache"
+    httpd_group: "apache"
+    domain_name: "www.abc.com"
+  tasks:
+
+    - name: "Installing Apache"
+      yum:
+        name:
+          - httpd
+        state: present
+          
+    - name: "Creating Virtualhost"
+      template:
+        src: "virtualhost.conf.j2"
+        dest: "/etc/httpd/conf.d/{{ domain_name }}.conf"
+        owner: "root"
+        group: "root"
+      register: vhost_status
+      
+    - name: "Creating Documentroot"
+      file:
+        path: "/var/www/html/{{ domain_name }}"
+        state: directory
+        owner: "{{  httpd_user }}"
+        group: "{{ httpd_group }}"
+          
+    - name: "downoad websiute files"
+      unarchive:
+        src: https://www.tooplate.com/zip-templates/2121_wave_cafe.zip
+        dest: /tmp/
+        remote_src: true
+
+    - name: "copy file to doc root"
+      when: ansible_os_family == "RedHat"
+      copy:
+        src: /tmp/2121_wave_cafe/
+        dest: /var/www/html/{{ domain_name }}/
+        owner: "{{ httpd_user }}"
+        group: "{{ httpd_group }}"
+        remote_src: true
+      register: copy_status
+    - name: "Restarting/enabling apache"
+      when: copy_status.changed == true or vhost_status.changed == true
+      service:
+        name: httpd
+        state: restarted
+        enabled: true
